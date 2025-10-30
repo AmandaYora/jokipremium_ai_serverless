@@ -1,0 +1,18 @@
+# Dependency folders
+node_modules/
+
+# Environment file
+.env
+
+# Local session or cache folders
+session/
+dist/
+build/
+.cache/
+.vercel/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
