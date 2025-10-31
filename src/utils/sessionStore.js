@@ -2,25 +2,37 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
+// In-memory fallback storage for when filesystem is unavailable
 const FALLBACK_MAP = new Map();
 const FALLBACK_META = new Map();
+
+// Session storage configuration
 let sessionDir = resolveSessionDir();
 let sessionDirReady = false;
 let useMemoryStore = false;
 
+/**
+ * Resolves the session directory based on environment
+ * Priority: SESSION_DIR env var > Vercel /tmp > local ./session
+ */
 function resolveSessionDir() {
   if (process.env.SESSION_DIR) {
     return path.resolve(process.env.SESSION_DIR);
   }
 
-  if (process.env.VERCEL) {
-    // Vercel's serverless runtime only allows writes inside /tmp.
+  if (process.env.VERCEL || process.env.VERCEL_ENV) {
+    // Vercel's serverless runtime only allows writes inside /tmp
+    // This directory is ephemeral and cleared between cold starts
     return path.join(os.tmpdir(), "jokipremium-session");
   }
 
   return path.resolve(process.cwd(), "session");
 }
 
+/**
+ * Ensures session directory exists, falls back to memory if needed
+ * Optimized for serverless with lazy initialization
+ */
 function ensureSessionDir() {
   if (useMemoryStore || sessionDirReady) {
     return;
@@ -29,9 +41,10 @@ function ensureSessionDir() {
   try {
     fs.mkdirSync(sessionDir, { recursive: true });
     sessionDirReady = true;
+    console.log(`[sessionStore] Using file storage: ${sessionDir}`);
   } catch (error) {
     console.warn(
-      `[sessionStore] Falling back to in-memory session storage: ${error.message}`
+      `[sessionStore] Falling back to in-memory storage: ${error.message}`
     );
     useMemoryStore = true;
     sessionDirReady = false;
@@ -42,10 +55,16 @@ function sessionFilePath(sessionId) {
   return path.join(sessionDir, `${sessionId}.json`);
 }
 
+/**
+ * Loads a session from storage (file or memory)
+ * Returns default empty session if not found
+ */
 export function loadSession(sessionId) {
   ensureSessionDir();
+
   if (useMemoryStore) {
-    return FALLBACK_MAP.get(sessionId) ?? { history: [], done: false };
+    const session = FALLBACK_MAP.get(sessionId);
+    return session ? { ...session } : { history: [], done: false };
   }
 
   const filePath = sessionFilePath(sessionId);
@@ -57,16 +76,25 @@ export function loadSession(sessionId) {
   try {
     const raw = fs.readFileSync(filePath, "utf8");
     const data = JSON.parse(raw);
+
+    // Validate and normalize session data
     if (!Array.isArray(data.history)) data.history = [];
     if (typeof data.done !== "boolean") data.done = false;
+
     return data;
-  } catch {
+  } catch (error) {
+    console.error(`[sessionStore] Failed to load session ${sessionId}:`, error.message);
     return { history: [], done: false };
   }
 }
 
+/**
+ * Saves a session to storage (file or memory)
+ * Optimized for serverless with atomic writes
+ */
 export function saveSession(sessionId, data) {
   ensureSessionDir();
+
   if (useMemoryStore) {
     FALLBACK_MAP.set(sessionId, { ...data });
     FALLBACK_META.set(sessionId, new Date().toISOString());
@@ -74,15 +102,45 @@ export function saveSession(sessionId, data) {
   }
 
   const filePath = sessionFilePath(sessionId);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+
+  try {
+    // Use atomic write: write to temp file, then rename
+    const tempPath = `${filePath}.tmp`;
+    const content = JSON.stringify(data, null, 2);
+
+    fs.writeFileSync(tempPath, content, "utf8");
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    console.error(`[sessionStore] Failed to save session ${sessionId}:`, error.message);
+
+    // Fallback to memory if filesystem fails
+    if (!useMemoryStore) {
+      console.warn("[sessionStore] Switching to in-memory storage due to write failure");
+      useMemoryStore = true;
+      FALLBACK_MAP.set(sessionId, { ...data });
+      FALLBACK_META.set(sessionId, new Date().toISOString());
+    }
+  }
 }
 
+/**
+ * Appends a message to session history
+ * Automatically trims to last 20 messages to prevent unbounded growth
+ */
 export function appendMessage(sessionId, role, text) {
   const session = loadSession(sessionId);
-  session.history.push({ role, text });
+
+  session.history.push({
+    role,
+    text,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Keep only the last 20 messages to manage storage size
   if (session.history.length > 20) {
-    session.history = session.history.slice(session.history.length - 20);
+    session.history = session.history.slice(-20);
   }
+
   saveSession(sessionId, session);
 }
 

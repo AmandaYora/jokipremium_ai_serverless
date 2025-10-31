@@ -18,8 +18,8 @@ export function getSessions(req, res) {
 
 export function removeSessions(req, res) {
   const payload = req.body ?? {};
-  const incomingIds = Array.isArray(payload.sessionIds) ? payload.sessionIds : [];
 
+  // Validate that sessionIds field exists and is an array
   if (!Array.isArray(payload.sessionIds)) {
     return res.status(400).json({
       ok: false,
@@ -28,6 +28,10 @@ export function removeSessions(req, res) {
     });
   }
 
+  // Get the sessionIds array
+  const incomingIds = payload.sessionIds;
+
+  // Validate that at least one valid session ID is provided
   if (!incomingIds.some((value) => (value ?? "").toString().trim().length > 0)) {
     return res.status(400).json({
       ok: false,
@@ -36,9 +40,11 @@ export function removeSessions(req, res) {
     });
   }
 
+  // Perform deletion
   const result = deleteSessions(incomingIds);
   const success = result.errors.length === 0;
 
+  // Return 200 if all successful, 207 (Multi-Status) if partial success
   return res.status(success ? 200 : 207).json({
     ok: success,
     ...result,

@@ -78,18 +78,45 @@ const FALLBACK_MESSAGE =
   "Untuk hal itu saya perlu konfirmasi langsung dengan tim. Bisa klik tombol WhatsApp admin Jokipremium di website ya dY~S";
 
 export async function handleChat(req, res) {
+  // Validate request body exists
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({
+      ok: false,
+      error: "invalid_request",
+      detail: "Request body is required",
+    });
+  }
+
   const sessionId = (req.body?.sessionId || "").toString().trim();
   const userQuestion = (req.body?.question || "").toString().trim();
 
   if (!sessionId) {
-    return res.status(400).json({ ok: false, error: "sessionId is required" });
+    return res.status(400).json({
+      ok: false,
+      error: "missing_session_id",
+      detail: "sessionId is required",
+    });
   }
 
   if (!userQuestion) {
-    return res.status(400).json({ ok: false, error: "question is required" });
+    return res.status(400).json({
+      ok: false,
+      error: "missing_question",
+      detail: "question is required",
+    });
   }
 
-  let sessionData = loadSession(sessionId);
+  let sessionData;
+  try {
+    sessionData = loadSession(sessionId);
+  } catch (error) {
+    console.error(`[chatController] Failed to load session ${sessionId}:`, error);
+    return res.status(500).json({
+      ok: false,
+      error: "session_load_failed",
+      detail: "Failed to load session data",
+    });
+  }
 
   if (sessionData.done) {
     return res.json({
@@ -145,6 +172,9 @@ export async function handleChat(req, res) {
     rawAnswer = result.response?.text?.() || "";
   } catch (err) {
     const message = err?.message ?? String(err);
+    console.error(`[chatController] AI generation error for session ${sessionId}:`, err);
+
+    // Handle specific error cases
     if (err?.code === "ECONNRESET" || message.includes("ECONNRESET")) {
       return res.status(503).json({
         ok: false,
@@ -153,10 +183,31 @@ export async function handleChat(req, res) {
       });
     }
 
+    // Handle rate limiting
+    if (message.includes("quota") || message.includes("rate limit")) {
+      return res.status(429).json({
+        ok: false,
+        error: "rate_limit_exceeded",
+        detail: "Terlalu banyak permintaan. Silakan coba lagi sebentar.",
+      });
+    }
+
+    // Handle blocked content
+    if (message.includes("SAFETY") || message.includes("blocked")) {
+      return res.status(400).json({
+        ok: false,
+        error: "content_blocked",
+        detail: "Konten tidak dapat diproses karena kebijakan keamanan.",
+      });
+    }
+
+    // Generic upstream error
     return res.status(502).json({
       ok: false,
       error: "upstream_error",
-      detail: message,
+      detail: process.env.NODE_ENV === "production"
+        ? "Gagal mendapatkan respons dari AI. Silakan coba lagi."
+        : message,
     });
   }
 

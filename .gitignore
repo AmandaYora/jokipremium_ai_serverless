@@ -6,6 +6,7 @@ node_modules/
 
 # Local session or cache folders
 session/
+*.json.tmp
 dist/
 build/
 .cache/
