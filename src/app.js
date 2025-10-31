@@ -24,6 +24,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Root endpoint for health check
 app.get("/", (req, res) => {
   res.json({
     ok: true,
@@ -32,11 +33,16 @@ app.get("/", (req, res) => {
     role: "System Analyst + Customer Service",
     model: "gemini-2.5-flash",
     sessionStorage: "session/<sessionId>.json",
-    note: "POST /chat { sessionId, question }",
+    endpoints: {
+      chat: "POST /api/chat",
+      sessions: "GET /api/sessions",
+      deleteSessions: "DELETE /api/sessions"
+    }
   });
 });
 
-app.use("/chat", chatRoutes);
-app.use("/sessions", sessionRoutes);
+// API routes with /api prefix for consistency between local and Vercel
+app.use("/api/chat", chatRoutes);
+app.use("/api/sessions", sessionRoutes);
 
 export default app;

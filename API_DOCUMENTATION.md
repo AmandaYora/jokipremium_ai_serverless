@@ -41,7 +41,11 @@ Memeriksa status API dan mendapatkan informasi service.
   "role": "System Analyst + Customer Service",
   "model": "gemini-2.5-flash",
   "sessionStorage": "session/<sessionId>.json",
-  "note": "POST /chat { sessionId, question }"
+  "endpoints": {
+    "chat": "POST /api/chat",
+    "sessions": "GET /api/sessions",
+    "deleteSessions": "DELETE /api/sessions"
+  }
 }
 ```
 
@@ -49,7 +53,7 @@ Memeriksa status API dan mendapatkan informasi service.
 
 ### 2. Chat Endpoint
 
-**POST /chat**
+**POST /api/chat**
 
 Mengirim pertanyaan ke AI assistant dan mendapatkan respons.
 
@@ -165,7 +169,7 @@ Content-Type: application/json
 
 ### 3. List Sessions
 
-**GET /sessions**
+**GET /api/sessions**
 
 Mendapatkan daftar semua session yang tersimpan.
 
@@ -199,7 +203,7 @@ Mendapatkan daftar semua session yang tersimpan.
 
 ### 4. Delete Sessions
 
-**DELETE /sessions**
+**DELETE /api/sessions**
 
 Menghapus satu atau lebih session berdasarkan sessionId.
 
@@ -487,7 +491,7 @@ npm run dev
 ### Test Chat Endpoint
 
 ```bash
-curl -X POST http://localhost:3000/chat \
+curl -X POST http://localhost:3000/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "sessionId": "test-123",
@@ -498,13 +502,13 @@ curl -X POST http://localhost:3000/chat \
 ### Test List Sessions
 
 ```bash
-curl http://localhost:3000/sessions
+curl http://localhost:3000/api/sessions
 ```
 
 ### Test Delete Sessions
 
 ```bash
-curl -X DELETE http://localhost:3000/sessions \
+curl -X DELETE http://localhost:3000/api/sessions \
   -H "Content-Type: application/json" \
   -d '{
     "sessionIds": ["test-123"]
