@@ -16,6 +16,14 @@ const GREETING_PATTERNS = [
   /^perkenalkan\b/i,
 ];
 
+function stripMarkdownEmphasis(text) {
+  return text
+    .replace(/\*\*(\S(?:.*?\S)?)\*\*/g, "$1")
+    .replace(/__(\S(?:.*?\S)?)__/g, "$1")
+    .replace(/\*(\S(?:.*?\S)?)\*/g, "$1")
+    .replace(/_(\S(?:.*?\S)?)_/g, "$1");
+}
+
 function sanitizeAssistantOutput(text, allowGreeting) {
   const trimmed = text?.trim() ?? "";
   if (trimmed === "") {
@@ -23,7 +31,7 @@ function sanitizeAssistantOutput(text, allowGreeting) {
   }
 
   if (allowGreeting) {
-    return trimmed;
+    return stripMarkdownEmphasis(trimmed);
   }
 
   const lines = trimmed.split(/\r?\n/);
@@ -45,7 +53,8 @@ function sanitizeAssistantOutput(text, allowGreeting) {
     lines.shift();
   }
 
-  return lines.join("\n").trim();
+  const normalized = lines.join("\n").trim();
+  return normalized ? stripMarkdownEmphasis(normalized) : normalized;
 }
 
 const WHATSAPP_TRIGGERS = [
