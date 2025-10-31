@@ -1,5 +1,6 @@
 import express from "express";
 import chatRoutes from "./routes/chatRoutes.js";
+import sessionRoutes from "./routes/sessionRoutes.js";
 
 const app = express();
 
@@ -36,5 +37,6 @@ app.get("/", (req, res) => {
 });
 
 app.use("/chat", chatRoutes);
+app.use("/sessions", sessionRoutes);
 
 export default app;
